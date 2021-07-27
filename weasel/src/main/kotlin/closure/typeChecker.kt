@@ -4,7 +4,6 @@ import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentHashMapOf
 import kotlinx.collections.immutable.persistentSetOf
-import java.time.Month
 
 sealed class Monotype {
     object Number : Monotype()

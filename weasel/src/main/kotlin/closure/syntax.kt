@@ -1,5 +1,7 @@
 package closure
 
+import kotlinx.collections.immutable.PersistentMap
+
 sealed class Expr {
     data class Var(val name: String) : Expr()
     data class Lambda(val binder: String, val body: Expr) : Expr()

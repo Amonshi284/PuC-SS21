@@ -416,7 +416,7 @@ fun main() {
                                   mathe =       \person => if person.grades.mathe == 0 then false else person.grades.mathe,
                                   mci =         \person => if person.grades.mci == 0 then false else person.grades.mci
                                 } in
-        gregor
+        gradesRecord.pucc peter
     """.trimIndent()
     )
 

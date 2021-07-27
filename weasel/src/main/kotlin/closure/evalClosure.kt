@@ -79,18 +79,13 @@ fun evalBinaryNumber(v1: Value, v2: Value, f: (Int, Int) -> Int): Value {
 }
 
 fun evalProjection(expr: Expr, field: String, env: PersistentMap<String, Value>): Value{
+    val record = env[field] as? Value.Record ?: throw Exception("Is not a Record")
     when (expr){
         is Expr.Var ->{
-            val name = env[field]
-            if(name is Value.Record){
-                return name.fields[expr.name] ?: throw Exception("Field doesnt exist")
-            }else {
-                throw Exception("${field} is not a record")
-            }
+            return record.fields[expr.name] ?: throw Exception("Field doesnt exist")
         }
         is Expr.Projection -> {
             //myrecord.x.x          myrecord = {x = {x = 0}}
-            val record = env[field] as? Value.Record ?: throw Exception("Is not a Record")
             return evalProjection(expr.expr, expr.field, record.fields)
         }
         else -> {
