@@ -89,6 +89,7 @@ fun freshUnknown(): Monotype {
 }
 
 typealias Context = PersistentMap<String, Polytype>
+typealias RecordContext = PersistentMap<String, PersistentMap<String, Monotype>>
 
 val emptyContext: Context = persistentHashMapOf(
     "fix" to Polytype(
@@ -195,11 +196,24 @@ fun infer(ctx: Context, expr: Expr): Monotype {
             tyReturn
         }
         is Expr.Let -> {
+            var tmpCtx = ctx
+//            if(expr.expr is Expr.Record){
+//                var lets = persistentHashMapOf<String, Monotype>()
+//                for(let in expr.expr.lets){
+//                    lets = lets.put(let.first.name, generalize(ctx, infer(ctx, recordCtx, let.second)).ty)
+//                }
+//                tmpRecordCtx = recordCtx.put(expr.binder, lets)
+//            }else {
             val tyExpr = infer(ctx, expr.expr)
-            val tmpCtx = ctx.put(expr.binder, generalize(ctx, tyExpr))
+            tmpCtx = ctx.put(expr.binder, generalize(ctx, tyExpr))
+//           }
             val tyBody = infer(tmpCtx, expr.body)
             tyBody
         }
+        is Expr.Projection -> {
+            throw Exception("Fail")
+        }
+        is Expr.Record -> TODO()
     }
 }
 
@@ -215,7 +229,7 @@ fun testInfer(expr: String, ctx: Context = emptyContext) {
 }
 
 fun main() {
-    testInfer("1")
+    /*testInfer("1")
     testInfer("true")
     testInfer("\\x => true")
     testInfer("x")
@@ -268,5 +282,10 @@ fun main() {
             f (n - 1) + f (n - 2) in
         fib 5
         """.trimIndent()
-    )
+    )*/
+
+    testInfer("""
+        let myRecord = { x = true, y = 5 } in
+        myRecord.y
+    """.trimIndent())
 }

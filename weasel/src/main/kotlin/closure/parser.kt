@@ -22,6 +22,10 @@ sealed class Token {
     object BACKSLASH : Token()
     object ARROW : Token()
     object EQUALS : Token()
+    object LBRACE : Token()
+    object RBRACE : Token()
+    object COMMA : Token()
+    object POINT : Token()
 
     // Operatoren
     object PLUS : Token()
@@ -71,6 +75,8 @@ class Lexer(input: String) {
         return when (val c = iter.next()) {
             '(' -> Token.LPAREN
             ')' -> Token.RPAREN
+            '{' -> Token.LBRACE
+            '}' -> Token.RBRACE
             '+' -> Token.PLUS
             '-' -> Token.MINUS
             '*' -> Token.MUL
@@ -86,6 +92,8 @@ class Lexer(input: String) {
                 }
                 else -> Token.EQUALS
             }
+            ',' -> Token.COMMA
+            '.' -> Token.POINT
             else -> when {
                 c.isJavaIdentifierStart() -> ident(c)
                 c.isDigit() -> number(c)
@@ -196,6 +204,7 @@ class Parser(val tokens: Lexer) {
             is Token.BACKSLASH -> parseLambda()
             is Token.LPAREN -> parseParenthesized()
             is Token.LET -> parseLet()
+            is Token.LBRACE -> parseBracethesized()
             else -> null
         }
     }
@@ -222,6 +231,10 @@ class Parser(val tokens: Lexer) {
 
     private fun parseVar(): Expr {
         val t = expectNext<Token.IDENT>("identifier")
+        if(tokens.peek() is Token.POINT){
+            expectNext<Token.POINT>("point")
+            return Expr.Projection(parseVar(), t.ident)
+        }
         return Expr.Var(t.ident)
     }
 
@@ -230,6 +243,28 @@ class Parser(val tokens: Lexer) {
         val inner = parseExpr()
         expectNext<Token.RPAREN>(")")
         return inner
+    }
+
+    private fun parseBracethesized(): Expr {
+        // { x = 7,  y = true}
+        expectNext<Token.LBRACE>("{")
+        // defintion
+        var pairs = persistentHashMapOf<String, Expr>()
+        var binder = Expr.Var(expectNext<Token.IDENT>("ident").ident)
+        expectNext<Token.EQUALS>("=")
+        var expr = parseExpr()
+        pairs = pairs.put(binder.name,expr)
+
+        while (tokens.peek().equals(Token.COMMA)) {
+            expectNext<Token.COMMA>(",")
+            binder = Expr.Var(expectNext<Token.IDENT>("ident").ident)
+            expectNext<Token.EQUALS>("=")
+            expr = parseExpr()
+            pairs = pairs.put(binder.name,expr)
+        }
+
+        expectNext<Token.RBRACE>("}")
+        return Expr.Record(pairs)
     }
 
     private fun parseLambda(): Expr {
@@ -279,7 +314,7 @@ fun testParser(input: String) {
 }
 
 fun main() {
-    test("""
+    /*test("""
         if (\x => equals 25 x) 20
         then true
         else add 3 (add 4 5)
@@ -314,6 +349,85 @@ fun main() {
     val input = """(\x => if x then 3 else 4) false"""
     println(eval(persistentHashMapOf(), Parser(Lexer(input)).parseExpr()))
 
-    testParser("1 + 2")
+    testParser("1 + 2")*/
+
+//    testEval("""
+//        let myrecord = {x = {x = 5}, y = true} in
+//        myrecord
+//        """.trimIndent()
+//    )
+//
+//    testEval("""
+//        let myrecord = {x = {x = 5}, y = true} in
+//        myrecord.x.x
+//        """.trimIndent()
+//    )
+//
+//    testEval("""
+//        let projectx =
+//            \\r => r.x in
+//        let myrecord =
+//            {x = \\r => 2 + r, y = 9} in
+//        projectx myrecord 10
+//        """.trimIndent()
+//    )
+//
+//    testEval(
+//        """
+//        let myrecord = {x = 5, y = if 5 == 4 then true else false} in
+//        let myrecord2 = {x = 10} in
+//        let x = 2 in
+//        if myrecord.y then
+//            myrecord.x
+//          else
+//            myrecord2.x + x
+//        """.trimIndent()
+//    )
+//
+//    testEval(
+//        """
+//            let r = {x = 3, y = \f => if f == 3 then false else true} in
+//            let r2 = {z = 2} in
+//            if r.y r2.z then
+//                r.x
+//            else
+//                r.x + r.x
+//        """.trimIndent()
+//    )
+
+
+    testEval(
+        """
+        let gregor =    { age = 20, matrikelnumber = 87654321, semester = 2, 
+                                        grades = { puc = 2, pp = 2, mathe = 2, mci = 1 } } in
+        let max =       { age = 25, matrikelnumber = 12348765, semester = 5, 
+                                        grades = { puc = 3, pp = 2, mathe = 3, mci = 1 } } in
+        let beate =     { age = 24, matrikelnumber = 12341234, semester = 6, 
+                                        grades = { puc = 2, pp = 2, mathe = 3, mci = 4 } } in
+        let anna =      { age = 25, matrikelnumber = 12344321, semester = 4, 
+                                        grades = { puc = 1, pp = 2, mathe = 3, mci = 1 } } in
+        let peter =     { age = 22, matrikelnumber = 43215678, semester = 1, 
+                                        grades = { puc = 0, pp = 0, mathe = 4, mci = 0 } } in
+        let compareRecord =     { semester =    \comparedSemester => \person => if comparedSemester == person.semester then true else false,
+                                  age =         \personA => \personB => if personA.age == personB.age then true else false
+                                } in
+        let gradesRecord =      { puc =         \person => if person.grades.puc == 0 then false else person.grades.puc,
+                                  pp =          \person => if person.grades.pp == 0 then false else person.grades.pp,
+                                  mathe =       \person => if person.grades.mathe == 0 then false else person.grades.mathe,
+                                  mci =         \person => if person.grades.mci == 0 then false else person.grades.mci
+                                } in
+        gregor
+    """.trimIndent()
+    )
+
+//    gregor
+//    compareRecord.semester 3 gregor
+//    compareRecord.age gregor max
+//    gradesRecord.puc gregor
+//    gradesRecord.pp gregor
+//    gradesRecord.mathe gregor
+//    gradesRecord.mci gregor
+
+
 }
 

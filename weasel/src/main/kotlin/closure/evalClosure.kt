@@ -9,6 +9,7 @@ sealed class Value {
     data class Number(val n: Int) : Value()
     data class Closure(val env: Env, val binder: String, val body: Expr) : Value()
     data class Boolean(val b: kotlin.Boolean) : Value()
+    data class Record(val fields: PersistentMap<String, Value>) : Value()
 }
 
 fun eval(env: Env, expr: Expr): Value {
@@ -17,6 +18,13 @@ fun eval(env: Env, expr: Expr): Value {
         is Expr.Boolean -> Value.Boolean(expr.b)
         is Expr.Var -> env[expr.name] ?: throw Exception("${expr.name} is not defined.")
         is Expr.Lambda -> Value.Closure(env, expr.binder, expr.body)
+        is Expr.Record -> {
+            var fields = persistentHashMapOf<String, Value>()
+            for(let in expr.lets){
+                fields = fields.put(let.key, eval(env, let.value))
+            }
+            Value.Record(fields)
+        }
         is Expr.Let -> {
             val evaledExpr = eval(env, expr.expr)
             val nestedEnv = env.put(expr.binder, evaledExpr)
@@ -52,6 +60,9 @@ fun eval(env: Env, expr: Expr): Value {
                     evalBinaryNumber(eval(env, expr.x), eval(env, expr.y)) { x, y -> x - y }
             }
         }
+        is Expr.Projection -> {
+            evalProjection(expr.expr, expr.field, env)
+        }
     }
 }
 
@@ -65,6 +76,27 @@ fun evalBinaryNumber(v1: Value, v2: Value, f: (Int, Int) -> Int): Value {
     val v1n = v1 as? Value.Number ?: throw Exception("Can't use a binary operation on $v1, it's not a number")
     val v2n = v2 as? Value.Number ?: throw Exception("Can't use a binary operation on $v2, it's not a number")
     return Value.Number(f(v1n.n, v2n.n))
+}
+
+fun evalProjection(expr: Expr, field: String, env: PersistentMap<String, Value>): Value{
+    when (expr){
+        is Expr.Var ->{
+            val name = env[field]
+            if(name is Value.Record){
+                return name.fields[expr.name] ?: throw Exception("Field doesnt exist")
+            }else {
+                throw Exception("${field} is not a record")
+            }
+        }
+        is Expr.Projection -> {
+            //myrecord.x.x          myrecord = {x = {x = 0}}
+            val record = env[field] as? Value.Record ?: throw Exception("Is not a Record")
+            return evalProjection(expr.expr, expr.field, record.fields)
+        }
+        else -> {
+            throw Exception("Wrong syntax")
+        }
+    }
 }
 
 fun testEval(expr: String) {
@@ -133,29 +165,49 @@ fun main() {
 //    val sumLambda = Expr.Application(z, sumSingle)
 //
 //    test(Expr.Application(sumLambda, Expr.Number(5)))
-    testEval(
-        """
-        let add3 = \x => x + 3 in
-        let twice = \f => \x => f (f x) in
-        twice add3 10
-    """.trimIndent()
-    )
+//    testEval(
+//        """
+//        let add3 = \x => x + 3 in
+//        let twice = \f => \x => f (f x) in
+//        twice add3 10
+//    """.trimIndent()
+//    )
+//
+//    testEval(
+//        """
+//        let fib = fix \fib => \n =>
+//          if n == 0 then
+//            1
+//          else if n == 1 then
+//            1
+//          else
+//            fib (n - 1) + fib (n - 2) in
+//        fib 5
+//        """.trimIndent()
+//    )
+
 
     testEval(
         """
-        let fib = fix \fib => \n => 
-          if n == 0 then 
-            1 
-          else if n == 1 then 
-            1 
-          else 
-            fib (n - 1) + fib (n - 2) in
-        fib 5
+        let myrecord = {x = 5, y = if 5 == 4 then true else false} in
+        let myrecord2 = {x = 10} in
+        let x = 2 in
+        if myrecord.y then
+            myrecord.x 
+          else
+            myrecord2.x + x
         """.trimIndent()
     )
 
-    // Homework: Fibonacci
-    // fib(0) = 1
-    // fib(1) = 1
-    // fib(n) = fib(n + -1) + fib(n + -2)
+    testEval(
+        """
+            let r = {x = 3, y = \f => if f == 3 then false else true} in
+            let r2 = {z = 2} in
+            if r.y r2.z then
+                r.x
+            else
+                r.x + r.x
+        """.trimIndent()
+    )
+
 }
